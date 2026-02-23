@@ -206,7 +206,7 @@ should_throttle_nudge() {
 
 is_valid_cli_type() {
     case "${1:-}" in
-        claude|codex|copilot|kimi) return 0 ;;
+        claude|codex|copilot|kimi|cursor) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -499,13 +499,32 @@ send_cli_command() {
                 return 0
             fi
             ;;
+        cursor)
+            # Cursor Agent CLI: /clear不存在→Ctrl-C+再起動, /model非対応→スキップ
+            if [[ "$cmd" == "/clear" ]]; then
+                echo "[$(date)] [SEND-KEYS] Cursor /clear: sending Ctrl-C + restart for $AGENT_ID" >&2
+                timeout 5 tmux send-keys -t "$PANE_TARGET" C-c 2>/dev/null || true
+                sleep 2
+                local cursor_cmd
+                cursor_cmd=$(build_cli_command "$AGENT_ID" 2>/dev/null || echo "agent --yolo")
+                timeout 5 tmux send-keys -t "$PANE_TARGET" "$cursor_cmd" 2>/dev/null || true
+                sleep 0.3
+                timeout 5 tmux send-keys -t "$PANE_TARGET" Enter 2>/dev/null || true
+                sleep 3
+                return 0
+            fi
+            if [[ "$cmd" == /model* ]]; then
+                echo "[$(date)] Skipping $cmd (not supported on cursor)" >&2
+                return 0
+            fi
+            ;;
         # claude: commands pass through as-is
     esac
 
     echo "[$(date)] [SEND-KEYS] Sending CLI command to $AGENT_ID ($effective_cli): $actual_cmd" >&2
     # Clear stale input first, then send command (text and Enter separated for Codex TUI)
-    # Codex CLI: C-c when idle causes CLI to exit — skip it
-    if [[ "$effective_cli" != "codex" ]]; then
+    # Codex/Cursor CLI: C-c when idle causes CLI to exit — skip it
+    if [[ "$effective_cli" != "codex" && "$effective_cli" != "cursor" ]]; then
         timeout 5 tmux send-keys -t "$PANE_TARGET" C-c 2>/dev/null || true
         sleep 0.5
     fi
@@ -585,6 +604,7 @@ send_context_reset() {
         claude)   reset_cmd="/clear" ;;
         copilot)  reset_cmd="/clear" ;;
         kimi)     reset_cmd="/clear" ;;
+        cursor)   reset_cmd="__RESTART__" ;;  # Cursor has no /clear; Ctrl-C + restart
         *)        reset_cmd="/new" ;;  # safe default (codex-safe)
     esac
 
@@ -605,6 +625,20 @@ send_context_reset() {
         sleep 3
         # Wait for idle + send startup prompt via shared helper
         send_codex_startup_prompt
+        return 0
+    fi
+
+    # Cursor Agent CLI: Ctrl-C + restart (no /clear command available)
+    if [[ "$effective_cli" == "cursor" ]]; then
+        echo "[$(date)] [CONTEXT-RESET] Cursor: sending Ctrl-C + restart for $AGENT_ID" >&2
+        timeout 5 tmux send-keys -t "$PANE_TARGET" C-c 2>/dev/null || true
+        sleep 2
+        local cursor_cmd
+        cursor_cmd=$(build_cli_command "$AGENT_ID" 2>/dev/null || echo "agent --yolo")
+        timeout 5 tmux send-keys -t "$PANE_TARGET" "$cursor_cmd" 2>/dev/null || true
+        sleep 0.3
+        timeout 5 tmux send-keys -t "$PANE_TARGET" Enter 2>/dev/null || true
+        sleep 5
         return 0
     fi
 
@@ -794,10 +828,10 @@ send_wakeup_with_escape() {
         return 0
     fi
 
-    # Codex CLI: ESC は「中断」になりやすく、人間操作中の事故も多い。
+    # Codex/Cursor CLI: ESC は「中断」になりやすく、人間操作中の事故も多い。
     # Phase 2 の Escape エスカレーションは無効化し、通常 nudge のみに落とす。
-    if [[ "$effective_cli" == "codex" ]]; then
-        echo "[$(date)] [SKIP] codex: suppressing Escape escalation for $AGENT_ID; sending plain nudge" >&2
+    if [[ "$effective_cli" == "codex" || "$effective_cli" == "cursor" ]]; then
+        echo "[$(date)] [SKIP] ${effective_cli}: suppressing Escape escalation for $AGENT_ID; sending plain nudge" >&2
         send_wakeup "$unread_count"
         return 0
     fi
@@ -829,8 +863,8 @@ send_wakeup_with_escape() {
     # Escape×2 to exit any mode
     timeout 5 tmux send-keys -t "$PANE_TARGET" Escape Escape 2>/dev/null || true
     sleep 0.5
-    # C-c to clear stale input (but Codex CLI terminates on C-c when idle, so skip it)
-    if [[ "$effective_cli" != "codex" ]]; then
+    # C-c to clear stale input (but Codex/Cursor CLI terminates on C-c when idle, so skip it)
+    if [[ "$effective_cli" != "codex" && "$effective_cli" != "cursor" ]]; then
         timeout 5 tmux send-keys -t "$PANE_TARGET" C-c 2>/dev/null || true
         sleep 0.5
         c_ctrl_state="sent"
@@ -1010,9 +1044,9 @@ for s in data.get('specials', []):
             if [ "$LAST_CLEAR_TS" -lt "$((now - ESCALATE_COOLDOWN))" ]; then
                 local effective_cli
                 effective_cli=$(get_effective_cli_type)
-                if [[ "$effective_cli" == "codex" ]]; then
-                    # Codex /clear -> /new は会話を切ってしまうため、安全側に倒す。
-                    echo "[$(date)] ESCALATION Phase 3: $AGENT_ID unresponsive for ${age}s, but cli=codex — skipping /clear." >&2
+                if [[ "$effective_cli" == "codex" || "$effective_cli" == "cursor" ]]; then
+                    # Codex/Cursor: /clear不存在。Ctrl-C+再起動は会話を切ってしまうため、安全側に倒す。
+                    echo "[$(date)] ESCALATION Phase 3: $AGENT_ID unresponsive for ${age}s, but cli=${effective_cli} — skipping /clear." >&2
                     FIRST_UNREAD_SEEN=$now  # Reset timer (no destructive action)
                     send_wakeup "$normal_count"
                 elif [ "$AGENT_ID" = "shogun" ] || [ "$AGENT_ID" = "karo" ] || [ "$AGENT_ID" = "gunshi" ]; then

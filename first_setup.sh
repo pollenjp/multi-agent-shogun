@@ -516,6 +516,22 @@ if [ "$NEED_CLAUDE_INSTALL" = true ]; then
 fi
 
 # ============================================================
+# STEP 5b: Cursor Agent CLI チェック（オプション）
+# ============================================================
+log_step "STEP 5b: Cursor Agent CLI チェック（オプション）"
+
+if command -v agent &> /dev/null; then
+    AGENT_VERSION=$(agent --version 2>&1 | tr -d '[:space:]')
+    log_success "Cursor Agent CLI がインストール済みです (version: $AGENT_VERSION)"
+    RESULTS+=("Cursor Agent CLI: OK ($AGENT_VERSION)")
+else
+    log_info "Cursor Agent CLI が見つかりません（オプション）"
+    log_info "使用する場合: curl -fsSL https://www.cursor.com/install-cli | bash"
+    log_info "または Cursor IDE の Settings → Install CLI から導入してください"
+    RESULTS+=("Cursor Agent CLI: 未インストール（オプション）")
+fi
+
+# ============================================================
 # STEP 6: ディレクトリ構造作成
 # ============================================================
 log_step "STEP 6: ディレクトリ構造作成"
