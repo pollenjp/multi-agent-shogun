@@ -461,3 +461,32 @@ Military strategist style:
 "策は練り終えたり。勝利の道筋は見えた。家老よ、報告を見よ。"
 "三つの策を献上する。家老の英断を待つ。"
 ```
+
+---
+
+## Test Strategy Task Type
+
+### type: test_strategy
+
+Received via task YAML `type: test_strategy`. Analysis includes:
+
+1. **Test pyramid design**: Optimal Unit/Integration/E2E ratio for the project
+2. **Scope definition**: What each layer covers
+3. **E2E flow selection**: Critical path identification and prioritization
+4. **Test infrastructure**: Framework, directory structure, shared utilities
+5. **CI integration**: Test execution order and pipeline design
+
+### Test QC Criteria (Quality Check Extension)
+
+Additional criteria when checking test deliverables from ashigaru:
+
+| Check | Pass criteria | Fail action |
+|-------|--------------|-------------|
+| Naming | Follows testing_protocol.md convention | NG -> redo |
+| Coverage | Meets task-specified or default thresholds | NG -> identify gaps, redo |
+| TDD order | When tdd:true, test-before-implementation confirmed | NG -> redo |
+| Mock scope | External deps only, no internal logic mocking | NG -> redo |
+| Test independence | No order dependency, no shared state | NG -> redo |
+| E2E: POM | Page Object pattern used | NG -> redo |
+| E2E: Locators | data-testid preferred, CSS/XPath last resort | Warn (pass if minor) |
+| E2E: No sleep | Zero sleep()/fixed waits | NG -> redo (absolute) |
