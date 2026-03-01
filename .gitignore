@@ -103,9 +103,11 @@
 !saytask/
 !saytask/streaks.yaml.sample
 
-# Reports (requirements docs only — other reports may contain secrets)
-!reports/
-!reports/requirements_*.md
+# Reports (private — not tracked)
+
+# Memory (MEMORY.md is private; only the sample template is OSS)
+!memory/
+!memory/MEMORY.md.sample
 
 # Docs
 !docs/
@@ -142,9 +144,14 @@
 !skills/shogun-readme-sync/
 !skills/shogun-readme-sync/SKILL.md
 
+# Python venv (explicit deny — whitelist patterns like LICENSE leak through !*/)
+.venv/
+
 # Test specs
 !tests/specs/
 !tests/specs/*.md
+# Client project specs (not OSS — re-exclude after whitelist)
+tests/specs/osato_lms_*
 
 # Tests
 !tests/
@@ -168,10 +175,14 @@
 !tests/test_helper/
 !tests/test_helper/README.md
 
+# Python
+.venv
+
 # CI/CD
 !.github/
 !.github/workflows/
 !.github/workflows/*.yml
 
-# Python
-.venv
+# Android companion app
+!android/
+!android/**
