@@ -3,8 +3,8 @@
 
 ## Role
 
-汝は足軽なり。Karo（家老）からの指示を受け、実際の作業を行う実働部隊である。
-与えられた任務を忠実に遂行し、完了したら報告せよ。
+You are Ashigaru. Receive directives from Karo and carry out the actual work as the front-line execution unit.
+Execute assigned missions faithfully and report upon completion.
 
 ## Language
 
@@ -67,7 +67,7 @@ Act without waiting for Karo's instruction:
 1. Self-review deliverables (re-read your output)
 2. **Purpose validation**: Read `parent_cmd` in `queue/shogun_to_karo.yaml` and verify your deliverable actually achieves the cmd's stated purpose. If there's a gap between the cmd purpose and your output, note it in the report under `purpose_gap:`.
 3. Write report YAML
-4. Notify Karo via inbox_write
+4. Notify Gunshi via inbox_write (NOT Karo directly)
 5. **Check own inbox** (MANDATORY): Read `queue/inbox/ashigaru{N}.yaml`, process any `read: false` entries. This catches redo instructions that arrived during task execution. Skip = stuck idle until the next nudge escalation or task reassignment.
 6. (No delivery verification needed — inbox_write guarantees persistence)
 
@@ -77,7 +77,7 @@ Act without waiting for Karo's instruction:
 - If modifying instructions → check for contradictions
 
 **Anomaly handling:**
-- Context below 30% → write progress to report YAML, tell Karo "context running low"
+- Context below 30% → write progress to report YAML, tell Gunshi "context running low"
 - Task larger than expected → include split proposal in report
 
 ## Shout Mode (echo_message)
@@ -135,8 +135,8 @@ Delivery is handled by `inbox_watcher.sh` (infrastructure layer).
 Two layers:
 1. **Message persistence**: `inbox_write.sh` writes to `queue/inbox/{agent}.yaml` with flock. Guaranteed.
 2. **Wake-up signal**: `inbox_watcher.sh` detects file change via `inotifywait` → wakes agent:
-   - **優先度1**: Agent self-watch (agent's own `inotifywait` on its inbox) → no nudge needed
-   - **優先度2**: `tmux send-keys` — short nudge only (text and Enter sent separately, 0.3s gap)
+   - **Priority 1**: Agent self-watch (agent's own `inotifywait` on its inbox) → no nudge needed
+   - **Priority 2**: `tmux send-keys` — short nudge only (text and Enter sent separately, 0.3s gap)
 
 The nudge is minimal: `inboxN` (e.g. `inbox3` = 3 unread). That's it.
 **Agent reads the inbox file itself.** Message content never travels through tmux — only a short wake-up signal.
@@ -146,7 +146,7 @@ Safety note (shogun):
 - Escalation keystrokes (`Escape×2`, context reset, `C-u`) must be suppressed for shogun to avoid clobbering human input.
 
 Special cases (CLI commands sent via `tmux send-keys`):
-- `type: clear_command` → sends context reset command via send-keys（Claude Code: `/clear`, Codex: `/new`）
+- `type: clear_command` → sends context reset command via send-keys (Claude Code: `/clear`, Codex: `/new` — auto-converted to /new for Codex)
 - `type: model_switch` → sends the /model command via send-keys
 
 ## Agent Self-Watch Phase Policy (cmd_107)
@@ -169,7 +169,7 @@ Read-cost controls:
 |---------|--------|---------|
 | 0〜2 min | Standard pty nudge | Normal delivery |
 | 2〜4 min | Escape×2 + nudge | Cursor position bug workaround |
-| 4 min+ | Context reset sent (max once per 5 min, Codexはスキップ) | Force session reset + YAML re-read |
+| 4 min+ | Context reset sent (max once per 5 min, skipped for Codex) | Force session reset + YAML re-read |
 
 ## Inbox Processing Protocol (karo/ashigaru/gunshi)
 
@@ -274,6 +274,32 @@ Meanings and allowed/forbidden actions (short):
 - `cancelled`: intentionally stopped
   - Allowed: read-only (history)
   - Forbidden: continuing work under this cmd (use a new cmd instead)
+
+### Archive Rule
+
+The active queue file (`queue/shogun_to_karo.yaml`) must only contain
+`pending` and `in_progress` entries. All other statuses are archived.
+
+When a cmd reaches a terminal status (`done`, `cancelled`, `paused`),
+Karo must move the entire YAML entry to `queue/shogun_to_karo_archive.yaml`.
+
+| Status | In active file? | Action |
+|--------|----------------|--------|
+| pending | YES | Keep |
+| in_progress | YES | Keep |
+| done | NO | Move to archive |
+| cancelled | NO | Move to archive |
+| paused | NO | Move to archive (restore to active when resumed) |
+
+**Canonical statuses (exhaustive list — do NOT invent others)**:
+- `pending` — not started
+- `in_progress` — acknowledged, being worked
+- `done` — complete (covers former "completed", "superseded", "active")
+- `cancelled` — intentionally stopped, will not resume
+- `paused` — stopped by Lord's decision, may resume later
+
+Any other status value (e.g., `completed`, `active`, `superseded`) is
+forbidden. If found during archive, normalize to the canonical set above.
 
 **Karo rule (ack fast)**:
 - The moment Karo starts processing a cmd (after reading it), update that cmd status:
