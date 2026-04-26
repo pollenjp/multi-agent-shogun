@@ -38,7 +38,7 @@
 #   T-CODEX-012: auto-recovery task_assignedは重複投入しない
 #   T-SHOGUN-001: session_has_client — returns 0 when client attached
 #   T-SHOGUN-002: session_has_client — returns 1 when no client
-#   T-SHOGUN-003: send_wakeup — shogun + active + attached → display-message only
+#   T-SHOGUN-003: send_wakeup — shogun + active + attached → send-keys (post PR#75)
 #   T-SHOGUN-004: send_wakeup — shogun + active + detached → send-keys fallthrough
 #   T-BUSY-005: agent_is_busy — returns busy during /clear cooldown (LAST_CLEAR_TS)
 #   T-BUSY-006: agent_is_busy — returns idle after /clear cooldown expires
@@ -47,6 +47,9 @@
 #   T-BUSY-009: agent_is_busy — 'background terminal running' detected as busy
 #   T-BUSY-010: agent_is_busy — 'Compacting conversation' detected as busy
 #   T-BUSY-011: agent_is_busy — 'esc to interrupt' alone detected as busy
+#   T-SHOOK-001: Claude Code throttle uses 60s cooldown (stop-hook-supplementary)
+#   T-SHOOK-002: Claude Code count change bypasses throttle (stop-hook-supplementary)
+#   T-SHOOK-003: Non-Claude CLIs still bypass throttle on count change
 #   T-CRESET-001: send_context_reset — suppresses /clear for karo
 #   T-CRESET-002: send_context_reset — suppresses /clear for gunshi
 #   T-CRESET-003: send_context_reset — sends /clear for ashigaru
@@ -102,6 +105,7 @@ CLI_TYPE="claude"
 INBOX="$TEST_INBOX_DIR/test_agent.yaml"
 LOCKFILE="\${INBOX}.lock"
 SCRIPT_DIR="$PROJECT_ROOT"
+export IDLE_FLAG_DIR="$TEST_TMPDIR"
 
 # Mock external commands (defined before sourcing so they override real commands)
 tmux() {
@@ -141,6 +145,10 @@ export __INBOX_WATCHER_TESTING__=1
 source "$WATCHER_SCRIPT"
 HARNESS
     chmod +x "$TEST_HARNESS"
+
+    # Default: create idle flag so agent_is_busy() returns idle (1) for claude CLI
+    # Tests requiring busy state must rm this file before their run bash -c block
+    touch "$TEST_TMPDIR/shogun_idle_test_agent"
 }
 
 teardown() {
@@ -392,10 +400,11 @@ MOCK
 
 # --- T-BUSY-001: agent_is_busy detects "Working" ---
 
-@test "T-BUSY-001: agent_is_busy returns 0 when pane shows Working" {
+@test "T-BUSY-001: agent_is_busy returns 0 (busy) when no idle flag — claude CLI" {
+    rm -f "$TEST_TMPDIR/shogun_idle_test_agent"
     run bash -c '
-        MOCK_CAPTURE_PANE="◦ Working on task (12s • esc to interrupt)"
         source "'"$TEST_HARNESS"'"
+        LAST_CLEAR_TS=0
         agent_is_busy
     '
     [ "$status" -eq 0 ]
@@ -416,8 +425,8 @@ MOCK
 # --- T-BUSY-003: send_wakeup skips when agent is busy ---
 
 @test "T-BUSY-003: send_wakeup skips nudge when agent is busy" {
+    rm -f "$TEST_TMPDIR/shogun_idle_test_agent"
     run bash -c '
-        MOCK_CAPTURE_PANE="◦ Thinking about approach (5s • esc to interrupt)"
         source "'"$TEST_HARNESS"'"
         send_wakeup 3
     '
@@ -431,8 +440,8 @@ MOCK
 # --- T-BUSY-004: send_wakeup_with_escape skips when agent is busy ---
 
 @test "T-BUSY-004: send_wakeup_with_escape skips when agent is busy" {
+    rm -f "$TEST_TMPDIR/shogun_idle_test_agent"
     run bash -c '
-        MOCK_CAPTURE_PANE="◦ Sending request (2s • esc to interrupt)"
         source "'"$TEST_HARNESS"'"
         send_wakeup_with_escape 2
     '
@@ -503,8 +512,8 @@ MOCK
 # --- T-CODEX-004: C-u NOT sent when agent is busy ---
 
 @test "T-CODEX-004: C-u cleanup NOT sent when agent is busy" {
+    rm -f "$TEST_TMPDIR/shogun_idle_test_agent"
     run bash -c '
-        MOCK_CAPTURE_PANE="◦ Working on request (10s • esc to interrupt)"
         source "'"$TEST_HARNESS"'"
         FIRST_UNREAD_SEEN=12345
         normal_count=0
@@ -825,9 +834,9 @@ YAML
     [ "$status" -ne 0 ]
 }
 
-# --- T-SHOGUN-003: shogun + active pane + client attached → display-message only ---
+# --- T-SHOGUN-003: shogun + active pane + client attached → send-keys (post PR#75) ---
 
-@test "T-SHOGUN-003: send_wakeup shogun + active + attached uses display-message only" {
+@test "T-SHOGUN-003: send_wakeup shogun + active + attached uses send-keys" {
     run bash -c '
         MOCK_PANE_ACTIVE="1"
         MOCK_LIST_CLIENTS="/dev/pts/1: mock_session [200x50 xterm-256color]"
@@ -837,11 +846,8 @@ YAML
     '
     [ "$status" -eq 0 ]
 
-    # display-message was used for nudge
-    echo "$output" | grep -q "DISPLAY"
-
-    # send-keys with inbox should NOT have occurred
-    ! grep -q "send-keys.*inbox" "$MOCK_LOG"
+    # Post PR#75: shogun uses send-keys like other agents (display-message path removed)
+    grep -q "send-keys.*inbox2" "$MOCK_LOG"
 }
 
 # --- T-SHOGUN-004: shogun + active pane + no client → send-keys fallthrough ---
@@ -938,6 +944,7 @@ YAML
         MOCK_CAPTURE_PANE="$(printf "Some output\nbackground terminal running\n")"
         source "'"$TEST_HARNESS"'"
         LAST_CLEAR_TS=0
+        CLI_TYPE="codex"  # pane-based detection (non-claude fallback)
         agent_is_busy
     '
     [ "$status" -eq 0 ]
@@ -950,6 +957,7 @@ YAML
         MOCK_CAPTURE_PANE="$(printf "Compacting conversation...\n")"
         source "'"$TEST_HARNESS"'"
         LAST_CLEAR_TS=0
+        CLI_TYPE="codex"  # pane-based detection (non-claude fallback)
         agent_is_busy
     '
     [ "$status" -eq 0 ]
@@ -962,9 +970,90 @@ YAML
         MOCK_CAPTURE_PANE="$(printf "◦ Thinking (5s • esc to interrupt)\n")"
         source "'"$TEST_HARNESS"'"
         LAST_CLEAR_TS=0
+        CLI_TYPE="codex"  # pane-based detection (non-claude fallback)
         agent_is_busy
     '
     [ "$status" -eq 0 ]
+}
+
+# --- T-SHOOK-001: Claude Code throttle uses 60s cooldown (post PR#75: stop-hook supplementary) ---
+
+@test "T-SHOOK-001: Claude Code throttle uses 60s cooldown (stop-hook-supplementary)" {
+    run bash -c '
+        source "'"$TEST_HARNESS"'"
+        CLI_TYPE="claude"
+        LAST_NUDGE_TS=0
+        LAST_NUDGE_COUNT=""
+
+        # First call: should pass through (no throttle)
+        should_throttle_nudge 1
+        rc1=$?
+
+        # Simulate 60s elapsed — cooldown expired for claude (60s, same as default)
+        LAST_NUDGE_TS=$(($(date +%s) - 60))
+        LAST_NUDGE_COUNT=1
+
+        # Second call with same count after 60s: should NOT throttle (cooldown expired)
+        should_throttle_nudge 1
+        rc2=$?
+
+        echo "rc1=$rc1 rc2=$rc2"
+    '
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -q "rc1=1 rc2=1"  # 1=not-throttled, 1=not-throttled (60s cooldown expired)
+}
+
+# --- T-SHOOK-002: Claude Code count change bypasses throttle (post PR#75: standard behavior) ---
+
+@test "T-SHOOK-002: Claude Code count change bypasses throttle (stop-hook-supplementary)" {
+    run bash -c '
+        source "'"$TEST_HARNESS"'"
+        CLI_TYPE="claude"
+        LAST_NUDGE_TS=0
+        LAST_NUDGE_COUNT=""
+
+        # First call: should pass through
+        should_throttle_nudge 1
+        rc1=$?
+
+        # Simulate 30s elapsed, count changed from 1 to 2
+        LAST_NUDGE_TS=$(($(date +%s) - 30))
+
+        # Post PR#75: Claude uses standard throttle logic.
+        # Count change (1→2) bypasses throttle for ALL CLIs including claude.
+        should_throttle_nudge 2
+        rc2=$?
+
+        echo "rc1=$rc1 rc2=$rc2"
+    '
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -q "rc1=1 rc2=1"  # Both: 1=not-throttled (count change bypasses)
+}
+
+# --- T-SHOOK-003: Non-Claude CLIs bypass throttle on count change ---
+
+@test "T-SHOOK-003: Non-Claude CLIs still bypass throttle on count change" {
+    run bash -c '
+        source "'"$TEST_HARNESS"'"
+        CLI_TYPE="copilot"
+        LAST_NUDGE_TS=0
+        LAST_NUDGE_COUNT=""
+
+        # First call
+        should_throttle_nudge 1
+        rc1=$?
+
+        # Simulate 30s elapsed, count changed from 1 to 2
+        LAST_NUDGE_TS=$(($(date +%s) - 30))
+
+        # For copilot, count change (1→2) SHOULD bypass throttle
+        should_throttle_nudge 2
+        rc2=$?
+
+        echo "rc1=$rc1 rc2=$rc2"
+    '
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -q "rc1=1 rc2=1"  # Both pass through (count changed)
 }
 
 # --- T-CRESET-001: send_context_reset suppresses /clear for karo ---

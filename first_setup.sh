@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ============================================================
 # first_setup.sh - multi-agent-shogun 初回セットアップスクリプト
 # Ubuntu / WSL / Mac 用環境構築ツール
@@ -300,6 +300,10 @@ if [ -f "$VENV_DIR/bin/python3" ] && "$VENV_DIR/bin/python3" -c "import yaml" 2>
 else
     log_info "Python venv をセットアップ中..."
     if command -v python3 &> /dev/null; then
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update -qq 2>/dev/null
+            sudo apt-get install -y python3-venv 2>/dev/null
+        fi
         if python3 -m venv "$VENV_DIR" 2>/dev/null; then
             log_success "venv 作成完了: $VENV_DIR"
             if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
@@ -350,12 +354,25 @@ else
     HAS_ERROR=true
 fi
 
+# --- Bash version check (macOS ships with bash 3.2) ---
+if [ "$SETUP_OS" = "Darwin" ]; then
+    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+        log_warn "bash 3.2 detected (macOS default)."
+        log_warn "This tool requires bash 4.0+."
+        log_warn "Install: brew install bash"
+        log_warn "Then reopen terminal and retry."
+        HAS_ERROR=true
+    else
+        log_success "bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]} detected"
+    fi
+fi
+
 # --- coreutils (recommended for macOS) ---
 if [ "$SETUP_OS" = "Darwin" ]; then
     if ! command -v gtimeout &>/dev/null; then
         log_warn "GNU coreutils not found. inbox_watcher will use bash fallback for timeout."
-        log_warn "For better performance: brew install coreutils"
-        log_warn "(Not required — the system works without it)"
+        log_warn "Recommended: brew install coreutils"
+        RESULTS+=("coreutils: 未インストール (brew install coreutils)")
     else
         log_success "GNU coreutils detected (gtimeout available)"
     fi
@@ -627,6 +644,16 @@ EOF
     log_success "projects.yaml を作成しました"
 else
     log_info "config/projects.yaml は既に存在します"
+fi
+
+# memory/MEMORY.md（Shogun 永続メモリ — 既存ファイルは上書きしない）
+if [ ! -f "$SCRIPT_DIR/memory/MEMORY.md" ]; then
+    log_info "memory/MEMORY.md を作成中..."
+    cp "$SCRIPT_DIR/memory/MEMORY.md.sample" "$SCRIPT_DIR/memory/MEMORY.md"
+    log_success "memory/MEMORY.md を作成しました（MEMORY.md.sample からコピー）"
+    log_info "memory/MEMORY.md を編集して、あなたの情報を記入してください"
+else
+    log_info "memory/MEMORY.md は既に存在します（スキップ）"
 fi
 
 # memory/global_context.md（システム全体のコンテキスト）

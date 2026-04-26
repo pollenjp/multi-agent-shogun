@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # 🏯 multi-agent-shogun 出陣スクリプト（毎日の起動用）
 # Daily Deployment Script for Multi-Agent Orchestration System
 #
@@ -651,6 +651,10 @@ if [ "$SETUP_ONLY" = false ]; then
             exit 1
         fi
     fi
+
+    # 前セッションのstaleフラグをクリア
+    rm -f /tmp/shogun_idle_*
+    echo "idle flags cleared"
 
     log_war "👑 全軍に Claude Code を召喚中..."
 
