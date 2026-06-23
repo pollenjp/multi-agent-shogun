@@ -184,6 +184,9 @@ tests/specs/osato_lms_*
 !tests/test_helper/
 !tests/test_helper/README.md
 
+# Python
+.venv
+
 # CI/CD
 !.github/
 !.github/FUNDING.yml

@@ -225,6 +225,10 @@ System manages ALL white-collar work, not just self-improvement. Project folders
 2. **Preflight check**: テスト実行前に前提条件（依存ツール、エージェント稼働状態等）を確認。満たせないなら実行せず報告。
 3. **E2Eテストは家老が担当**: 全エージェント操作権限を持つ家老がE2Eを実行。足軽はユニットテストのみ。
 4. **テスト計画レビュー**: 家老はテスト計画を事前レビューし、前提条件の実現可能性を確認してから実行に移す。
+5. **Test Pyramid**: Unit 60-70% / Integration 20-30% / E2E 5-10%. See `instructions/common/testing_protocol.md`.
+6. **TDD cycle**: When task has `tdd: true`, follow Red-Green-Refactor per test case. No implementation without a failing test.
+7. **Coverage thresholds**: Default line 80%+ / branch 70%+. Task YAML `coverage` field overrides.
+8. **Test code quality**: Test code follows the same quality standards as production code. No sleep, no empty catch, intent-revealing names.
 
 # Batch Processing Protocol (all agents)
 

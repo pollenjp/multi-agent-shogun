@@ -55,6 +55,8 @@ EOFYAML
     cat "$PARTS_DIR/common/task_flow.md" >> "$output_path"
     echo "" >> "$output_path"
     cat "$PARTS_DIR/common/forbidden_actions.md" >> "$output_path"
+    echo "" >> "$output_path"
+    cat "$PARTS_DIR/common/testing_protocol.md" >> "$output_path"
 
     # Append CLI-specific tools section
     echo "" >> "$output_path"

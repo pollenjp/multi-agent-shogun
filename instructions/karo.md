@@ -944,3 +944,60 @@ External PRs are reinforcements. Treat with respect.
 - Ashigaru report overdue → check pane status
 - Dashboard inconsistency → reconcile with YAML ground truth
 - Own context < 20% remaining → report to shogun via dashboard, prepare for /clear
+
+---
+
+## TDD/Test Task Decomposition Templates
+
+### Unit Test Task (Ashigaru)
+```yaml
+task:
+  task_id: subtask_XXXa
+  parent_cmd: cmd_XXX
+  bloom_level: L3
+  tdd: true          # Optional: forces TDD cycle
+  coverage:           # Optional: overrides default 80/70
+    line: 90
+    branch: 80
+  description: |
+    TDD unit tests for {module}.
+    Target: {file_path}
+    Test file: {test_file_path}
+    Test pyramid layer: Unit (mock external deps)
+    Reference: instructions/common/testing_protocol.md
+
+    Required coverage:
+    - Happy path: {cases}
+    - Error cases: {cases}
+    - Edge cases: {cases}
+  status: assigned
+```
+
+### E2E Strategy Task (Gunshi)
+```yaml
+task:
+  task_id: gunshi_e2e_XXX
+  parent_cmd: cmd_XXX
+  bloom_level: L5
+  type: test_strategy
+  description: |
+    E2E test strategy for {app}.
+    Stack: {framework}
+    Deliverables:
+    1. Critical user flow list
+    2. Page Object design
+    3. data-testid additions needed
+    4. Test data preparation strategy
+    Reference: instructions/common/testing_protocol.md
+  status: assigned
+```
+
+### Test Task Routing
+
+| What to test | Layer | Assign to | Bloom |
+|-------------|-------|-----------|-------|
+| Business logic | Unit | Ashigaru | L3 |
+| Module integration | Integration | Ashigaru | L3 |
+| User flows | E2E | Karo executes | L3 |
+| Test strategy design | — | Gunshi | L5 |
+| Which tests to write | — | Gunshi | L5 |

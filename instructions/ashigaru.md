@@ -295,3 +295,40 @@ After task completion, check whether to echo a battle cry:
    - If no `echo_message` field → compose a 1-line sengoku-style battle cry summarizing what you did
    - Do NOT output any text after the echo — it must remain directly above the ❯ prompt
 3. **When DISPLAY_MODE=silent or not set**: Do NOT echo. Skip silently.
+
+---
+
+## Test Implementation Rules
+
+### TDD Cycle (when `tdd: true`)
+
+1. Write one failing test first (no implementation code)
+2. Write minimum code to pass it
+3. Refactor while keeping tests green
+4. Repeat per test case. No batch implementation.
+
+**Prohibited (TDD tasks):**
+- Writing implementation without a failing test
+- Writing tests after implementation
+- Reporting "tests omitted"
+
+### Test Naming
+
+- Python: `test_<target>_<condition>_<expected>`
+- TypeScript: `describe/it` nesting
+- Test name must convey: what, under which condition, expected outcome
+
+### Coverage
+
+Follow task YAML `coverage` field. Default when unspecified:
+- Line: 80%+, Branch: 70%+
+Report shortfalls with reasons and uncovered areas in report YAML.
+
+### Pre-Report Self-Check (Testing Tasks)
+
+Before writing report:
+- [ ] Test names express intent
+- [ ] Each test runs independently
+- [ ] Mocks only on external dependencies
+- [ ] No sleep/fixed waits
+- [ ] Edge cases and error cases covered
