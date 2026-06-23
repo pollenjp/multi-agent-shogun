@@ -71,6 +71,9 @@ EOFYAML
         kimi)
             cat "$PARTS_DIR/cli_specific/kimi_tools.md" >> "$output_path"
             ;;
+        cursor)
+            cat "$PARTS_DIR/cli_specific/cursor_tools.md" >> "$output_path"
+            ;;
     esac
 
     echo "  ✅ Created: $output_filename"
@@ -99,6 +102,12 @@ build_instruction_file "kimi" "shogun" "kimi-shogun.md"
 build_instruction_file "kimi" "karo" "kimi-karo.md"
 build_instruction_file "kimi" "ashigaru" "kimi-ashigaru.md"
 build_instruction_file "kimi" "gunshi" "kimi-gunshi.md"
+
+# Build Cursor Agent CLI instruction files
+build_instruction_file "cursor" "shogun" "cursor-shogun.md"
+build_instruction_file "cursor" "karo" "cursor-karo.md"
+build_instruction_file "cursor" "ashigaru" "cursor-ashigaru.md"
+build_instruction_file "cursor" "gunshi" "cursor-gunshi.md"
 
 # ============================================================
 # AGENTS.md generation (Codex auto-load file)
@@ -238,6 +247,7 @@ EOFYAML
 generate_agents_md
 generate_copilot_instructions
 generate_kimi_instructions
+# Cursor Agent CLI reads CLAUDE.md directly — no separate auto-load file needed.
 
 echo ""
 echo "=== Build Complete ==="

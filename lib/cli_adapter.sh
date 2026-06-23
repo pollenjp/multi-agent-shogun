@@ -16,7 +16,7 @@ CLI_ADAPTER_PROJECT_ROOT="$(cd "${CLI_ADAPTER_DIR}/.." && pwd)"
 CLI_ADAPTER_SETTINGS="${CLI_ADAPTER_SETTINGS:-${CLI_ADAPTER_PROJECT_ROOT}/config/settings.yaml}"
 
 # 許可されたCLI種別
-CLI_ADAPTER_ALLOWED_CLIS="claude codex copilot kimi"
+CLI_ADAPTER_ALLOWED_CLIS="claude codex copilot kimi cursor"
 
 # --- 内部ヘルパー ---
 
@@ -92,16 +92,16 @@ try:
     agent_cfg = agents.get('${agent_id}')
     if isinstance(agent_cfg, dict):
         t = agent_cfg.get('type', '')
-        if t in ('claude', 'codex', 'copilot', 'kimi'):
+        if t in ('claude', 'codex', 'copilot', 'kimi', 'cursor'):
             print(t); sys.exit(0)
     elif isinstance(agent_cfg, str):
-        if agent_cfg in ('claude', 'codex', 'copilot', 'kimi'):
+        if agent_cfg in ('claude', 'codex', 'copilot', 'kimi', 'cursor'):
             print(agent_cfg); sys.exit(0)
     default = cli.get('default', 'claude')
-    if default in ('claude', 'codex', 'copilot', 'kimi'):
+    if default in ('claude', 'codex', 'copilot', 'kimi', 'cursor'):
         print(default)
     else:
-        print('claude', file=sys.stderr)
+        print(f'invalid default: {default}', file=sys.stderr)
         print('claude')
 except Exception as e:
     print('claude', file=sys.stderr)
@@ -168,6 +168,13 @@ build_cli_command() {
             fi
             echo "$cmd"
             ;;
+        cursor)
+            local cmd="agent --yolo"
+            if [[ -n "$model" ]]; then
+                cmd="$cmd --model $model"
+            fi
+            echo "$cmd"
+            ;;
         *)
             echo "claude $permission_flag"
             ;;
@@ -197,6 +204,7 @@ get_instruction_file() {
         codex)   echo "instructions/codex-${role}.md" ;;
         copilot) echo ".github/copilot-instructions-${role}.md" ;;
         kimi)    echo "instructions/generated/kimi-${role}.md" ;;
+        cursor)  echo "instructions/generated/cursor-${role}.md" ;;
         *)       echo "instructions/${role}.md" ;;
     esac
 }
@@ -230,6 +238,12 @@ validate_cli_availability() {
                 echo "[ERROR] Kimi CLI not found. Install from https://platform.moonshot.cn/" >&2
                 return 1
             fi
+            ;;
+        cursor)
+            command -v agent &>/dev/null || {
+                echo "[ERROR] Cursor Agent CLI not found. Install from https://docs.cursor.com/cli" >&2
+                return 1
+            }
             ;;
         *)
             echo "[ERROR] Unknown CLI type: '$cli_type'. Allowed: $CLI_ADAPTER_ALLOWED_CLIS" >&2
@@ -275,6 +289,16 @@ get_agent_model() {
                 *)              echo "k2.5" ;;
             esac
             ;;
+        cursor)
+            # Cursor Agent CLI用デフォルトモデル
+            case "$agent_id" in
+                shogun)         echo "opus-4.6-thinking" ;;
+                karo)           echo "sonnet-4.6-thinking" ;;
+                gunshi)         echo "opus-4.6-thinking" ;;
+                ashigaru*)      echo "sonnet-4.6-thinking" ;;
+                *)              echo "sonnet-4.6-thinking" ;;
+            esac
+            ;;
         *)
             # Claude Code/Codex/Copilot用デフォルトモデル
             case "$agent_id" in
@@ -311,12 +335,15 @@ get_model_display_name() {
         *sonnet*)               short="Sonnet" ;;
         *haiku*)                short="Haiku" ;;
         *k2.5*|*kimi*)          short="Kimi" ;;
+        *gemini*)               short="Gemini" ;;
+        *grok*)                 short="Grok" ;;
         *)
             # CLI種別から推測
             case "$cli_type" in
                 codex)   short="Codex" ;;
                 copilot) short="Copilot" ;;
                 kimi)    short="Kimi" ;;
+                cursor)  short="Cursor" ;;
                 *)       short="$model" ;;
             esac
             ;;
@@ -349,6 +376,11 @@ get_startup_prompt() {
     case "$cli_type" in
         codex)
             echo "Session Start — do ALL of this in one turn, do NOT stop early: 1) tmux display-message -t \"\$TMUX_PANE\" -p '#{@agent_id}' to identify yourself. 2) Read queue/tasks/${agent_id}.yaml. 3) Read queue/inbox/${agent_id}.yaml, mark read:true. 4) Read files listed in context_files. 5) Execute the assigned task to completion — edit files, run commands, write reports. Keep working until the task is done."
+            ;;
+        cursor)
+            # Cursor Agent CLI reads CLAUDE.md automatically, triggering Session Start procedure.
+            # No explicit startup prompt needed (same as Claude Code).
+            echo ""
             ;;
         *)
             echo ""
@@ -692,6 +724,7 @@ can_model_switch() {
         codex)   echo "limited" ;;
         copilot) echo "none" ;;
         kimi)    echo "none" ;;
+        cursor)  echo "none" ;;
         *)       echo "none" ;;
     esac
 }
